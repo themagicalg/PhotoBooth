@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Slideshow</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        .controls {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s ease;
+        }
+
+        .controls.hidden {
+            transform: translateY(-100%);
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        #folderInput {
+            display: none;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .desktop-only {
+            display: inline-block;
+        }
+
+        .mobile-only {
+            display: none;
+        }
+
+        @media (max-width: 768px), (pointer: coarse) {
+            .desktop-only {
+                display: none;
+            }
+            
+            .mobile-only {
+                display: inline-block;
+            }
+        }
+
+        .select-wrapper {
+            position: relative;
+        }
+
+        select {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            appearance: none;
+            padding-right: 40px;
+        }
+
+        select:hover {
+            background: #444;
+        }
+
+        .select-wrapper::after {
+            content: '▼';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            font-size: 10px;
+        }
+
+        .slideshow-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+
+        .slide {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+        }
+
+        .slide img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .slide.active {
+            opacity: 1;
+        }
+
+        /* Transition animations */
+        .fade-transition .slide {
+            transition: opacity 1s ease-in-out;
+        }
+
+        .slide-left .slide.active {
+            animation: slideInLeft 1s ease-out;
+        }
+
+        .slide-right .slide.active {
+            animation: slideInRight 1s ease-out;
+        }
+
+        .slide-up .slide.active {
+            animation: slideInUp 1s ease-out;
+        }
+
+        .slide-down .slide.active {
+            animation: slideInDown 1s ease-out;
+        }
+
+        .zoom-in .slide.active {
+            animation: zoomIn 1s ease-out;
+        }
+
+        .zoom-out .slide.active {
+            animation: zoomOut 1s ease-out;
+        }
+
+        @keyframes slideInLeft {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideInUp {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes slideInDown {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes zoomIn {
+            from { transform: scale(0); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes zoomOut {
+            from { transform: scale(2); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .info {
+            color: #888;
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                padding: 10px;
+                gap: 10px;
+            }
+
+            button, select {
+                padding: 10px 16px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="controls" id="controls">
+        <button onclick="document.getElementById('folderInput').click()" class="desktop-only">Choose Folder</button>
+        <button onclick="document.getElementById('fileInput').click()" class="mobile-only">Choose Photos</button>
+        <input type="file" id="folderInput" webkitdirectory directory multiple accept="image/*">
+        <input type="file" id="fileInput" multiple accept="image/*">
+        
+        <div class="select-wrapper">
+            <select id="orderSelect">
+                <option value="name">Name Order</option>
+                <option value="random">Random Order</option>
+            </select>
+        </div>
+        
+        <div class="select-wrapper">
+            <select id="durationSelect">
+                <option value="5">5 seconds</option>
+                <option value="10">10 seconds</option>
+                <option value="15">15 seconds</option>
+                <option value="20">20 seconds</option>
+            </select>
+        </div>
+        
+        <button id="startBtn" onclick="startSlideshow()" disabled>Start Slideshow</button>
+        <button id="stopBtn" onclick="stopSlideshow()" disabled>Stop</button>
+        <button onclick="toggleFullscreen()">Fullscreen</button>
+        
+        <span class="info" id="photoCount">No photos loaded</span>
+    </div>
+
+    <div class="slideshow-container" id="slideshow">
+        <!-- Slides will be inserted here -->
+    </div>
+
+    <script>
+        let photos = [];
+        let currentIndex = 0;
+        let slideshowInterval = null;
+        let isPlaying = false;
+
+        const transitions = [
+            'fade-transition',
+            'slide-left',
+            'slide-right',
+            'slide-up',
+            'slide-down',
+            'zoom-in',
+            'zoom-out'
+        ];
+
+        // Handle folder/file selection
+        function handleFileSelection(e) {
+            const files = Array.from(e.target.files).filter(file => 
+                file.type.startsWith('image/')
+            );
+
+            if (files.length === 0) {
+                alert('No image files found. Please select image files.');
+                return;
+            }
+
+            photos = files;
+            const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'selected files';
+            document.getElementById('photoCount').textContent = `${photos.length} photos loaded`;
+            document.getElementById('startBtn').disabled = false;
+            
+            // Clear existing slides
+            document.getElementById('slideshow').innerHTML = '';
+        }
+
+        document.getElementById('folderInput').addEventListener('change', handleFileSelection);
+        document.getElementById('fileInput').addEventListener('change', handleFileSelection);
+
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        function sortByName(array) {
+            return [...array].sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        function startSlideshow() {
+            if (photos.length === 0) return;
+
+            // Get selected duration in milliseconds
+            const duration = parseInt(document.getElementById('durationSelect').value) * 1000;
+
+            // Apply order preference
+            const order = document.getElementById('orderSelect').value;
+            const orderedPhotos = order === 'random' ? shuffleArray(photos) : sortByName(photos);
+            
+            // Create slides
+            const container = document.getElementById('slideshow');
+            container.innerHTML = '';
+            
+            orderedPhotos.forEach((photo, index) => {
+                const slide = document.createElement('div');
+                slide.className = 'slide';
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(photo);
+                slide.appendChild(img);
+                container.appendChild(slide);
+            });
+
+            currentIndex = 0;
+            isPlaying = true;
+            
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            
+            showSlide(currentIndex);
+            
+            // Auto-advance based on selected duration
+            slideshowInterval = setInterval(() => {
+                currentIndex = (currentIndex + 1) % orderedPhotos.length;
+                showSlide(currentIndex);
+            }, duration);
+        }
+
+        function showSlide(index) {
+            const slides = document.querySelectorAll('.slide');
+            const container = document.getElementById('slideshow');
+            
+            // Remove all active classes and transition classes
+            slides.forEach(slide => slide.classList.remove('active'));
+            transitions.forEach(trans => container.classList.remove(trans));
+            
+            // Add random transition
+            const randomTransition = transitions[Math.floor(Math.random() * transitions.length)];
+            container.classList.add(randomTransition);
+            
+            // Show current slide
+            setTimeout(() => {
+                slides[index].classList.add('active');
+            }, 50);
+        }
+
+        function stopSlideshow() {
+            if (slideshowInterval) {
+                clearInterval(slideshowInterval);
+                slideshowInterval = null;
+            }
+            
+            isPlaying = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            // Clean up object URLs
+            const slides = document.querySelectorAll('.slide img');
+            slides.forEach(img => URL.revokeObjectURL(img.src));
+            
+            document.getElementById('slideshow').innerHTML = '';
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    alert(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Hide controls in fullscreen after 3 seconds of no mouse movement
+        let hideControlsTimeout;
+        document.addEventListener('mousemove', () => {
+            const controls = document.getElementById('controls');
+            controls.classList.remove('hidden');
+            
+            clearTimeout(hideControlsTimeout);
+            if (document.fullscreenElement) {
+                hideControlsTimeout = setTimeout(() => {
+                    controls.classList.add('hidden');
+                }, 3000);
+            }
+        });
+
+        // Hide controls immediately when entering fullscreen
+        document.addEventListener('fullscreenchange', () => {
+            const controls = document.getElementById('controls');
+            if (document.fullscreenElement) {
+                // Hide controls after a brief delay in fullscreen
+                setTimeout(() => {
+                    controls.classList.add('hidden');
+                }, 3000);
+            } else {
+                // Show controls when exiting fullscreen
+                controls.classList.remove('hidden');
+                clearTimeout(hideControlsTimeout);
+            }
+        });
+    </script>
+</body>
+</html>
